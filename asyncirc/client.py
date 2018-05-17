@@ -8,10 +8,13 @@ class EchoClientProtocol(asyncio.Protocol):
         self.loop = loop
         self.messages = messages
 
+    def send(self, *args):
+        for message in args:
+            self.transport.write(bytes(message))
+
     def connection_made(self, transport):
-        for message in self.messages:
-            msg = bytes(message)
-            transport.write(msg)
+        self.transport = transport
+        self.send(*self.messages)
 
     def data_received(self, data):
         if not len(data):
@@ -23,6 +26,7 @@ class EchoClientProtocol(asyncio.Protocol):
         print('The server closed the connection')
         print('Stop the event loop')
         self.loop.stop()
+
 
 def cli():
     loop = asyncio.get_event_loop()

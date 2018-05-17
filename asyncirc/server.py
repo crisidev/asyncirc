@@ -56,7 +56,7 @@ class Handler(object):
     def __call__(self, client: ClientHandler, msg: message.Message):
         raise NotImplementedError('handler is not implemented')
 
-class Server(object):
+class BaseServer(object):
 
     def __init__(self, handler: Optional[ClientHandler] = ClientHandler,
             handlers: Dict[str, Handler] = {}):
@@ -78,6 +78,20 @@ class Server(object):
 
     def handle_terminate(self, client: ClientHandler, msg: message.Message):
         client.transport.close()
+
+class Room(object): pass
+
+class Server(BaseServer):
+
+    def __init__(self, handler: Optional[ClientHandler] = ClientHandler,
+            handlers: Dict[str, Handler] = {}):
+        super().__init__(handler, handlers)
+        self.rooms: Dict[str, List[Message]] = {}
+
+    def handle_create_room(self, client: ClientHandler, msg: message.Message):
+        room_name = msg.str_payload()
+        if not room_name in self.rooms:
+            self.rooms[room_name] = Room()
 
 def cli():
     loop = asyncio.get_event_loop()

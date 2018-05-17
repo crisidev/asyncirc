@@ -29,6 +29,12 @@ class Message(object):
                 self.handler_length, self.header_length, self.payload_length,
                 self.handler.encode(self.ENCODING), self.header, self.payload)
 
+    def str_payload(self) -> str:
+        return self.payload.decode(self.ENCODING, errors='ignore')
+
+    def str_header(self) -> str:
+        return self.header.decode(self.ENCODING, errors='ignore')
+
     @classmethod
     def decode(cls, msg: bytes):
         while len(msg):
@@ -52,3 +58,10 @@ class Echo(Message):
 
 NotFound = Message('not_found', b'', b'Handler Not Found')
 Terminate = Message('terminate', b'', b'')
+
+# IRC Messages
+
+class CreateRoom(Message):
+
+    def __init__(self, room_name):
+        super().__init__('create_room', b'', room_name.encode(self.ENCODING))
