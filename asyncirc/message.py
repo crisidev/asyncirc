@@ -31,13 +31,24 @@ class Message(object):
 
     @classmethod
     def decode(cls, msg: bytes):
-        initialSize = struct.calcsize(cls.INITIAL_FORMAT)
-        initial = cls.INITIAL._make(struct.unpack(cls.INITIAL_FORMAT,
-            msg[:initialSize]))
-        structFormat = cls.INITIAL_FORMAT + \
-                cls.BODY_FORMAT.format(initial.handler_length,
-                        initial.header_length, initial.payload_length)
-        msgSize = initialSize + struct.calcsize(structFormat)
-        msg = cls.MESSAGE._make(struct.unpack(structFormat, msg))
-        return cls(msg.handler.decode(cls.ENCODING, errors='ignore'),
-                msg.header, msg.payload)
+        while len(msg):
+            initialSize = struct.calcsize(cls.INITIAL_FORMAT)
+            initial = cls.INITIAL._make(struct.unpack(cls.INITIAL_FORMAT,
+                msg[:initialSize]))
+            structFormat = cls.INITIAL_FORMAT + \
+                    cls.BODY_FORMAT.format(initial.handler_length,
+                            initial.header_length, initial.payload_length)
+            msgSize = struct.calcsize(structFormat)
+            message = cls.MESSAGE._make(struct.unpack(structFormat,
+                msg[:msgSize]))
+            yield cls(message.handler.decode(cls.ENCODING, errors='ignore'),
+                    message.header, message.payload)
+            msg = msg[msgSize:]
+
+class Echo(Message):
+
+    def __init__(self, text):
+        super().__init__('echo', b'', text.encode(self.ENCODING))
+
+NotFound = Message('not_found', b'', b'Handler Not Found')
+Terminate = Message('terminate', b'', b'')

@@ -6,15 +6,16 @@ import asyncirc
 class TestServerMethods(unittest.TestCase):
 
     def test_start(self):
+        server = asyncirc.server.Server()
         loop = asyncio.new_event_loop()
         # Each client connection will create a new protocol instance
-        coro = loop.create_server(asyncirc.server.EchoServerClientProtocol,
-                '127.0.0.1', 8888)
+        coro = loop.create_server(server, '127.0.0.1', 8888)
         server = loop.run_until_complete(coro)
-        message = 'Hello World!'
         coro = loop.create_connection(lambda: \
-                asyncirc.client.EchoClientProtocol(message, loop),
-                                      '127.0.0.1', 8888)
+                asyncirc.client.EchoClientProtocol(loop,
+                    [asyncirc.message.Echo('Hello World!'),
+                    asyncirc.message.Terminate]),
+                '127.0.0.1', 8888)
         client, proto = loop.run_until_complete(coro)
 
         try:
@@ -23,7 +24,6 @@ class TestServerMethods(unittest.TestCase):
             pass
 
         client.close()
-        # Close the server
         server.close()
         loop.run_until_complete(server.wait_closed())
         loop.close()

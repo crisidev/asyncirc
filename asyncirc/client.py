@@ -1,16 +1,23 @@
 import asyncio
+from typing import List
+
+from .message import Message
 
 class EchoClientProtocol(asyncio.Protocol):
-    def __init__(self, message, loop):
-        self.message = message
+    def __init__(self, loop, messages: List[Message] = []):
         self.loop = loop
+        self.messages = messages
 
     def connection_made(self, transport):
-        transport.write(self.message.encode())
-        print('Data sent: {!r}'.format(self.message))
+        for message in self.messages:
+            msg = bytes(message)
+            transport.write(msg)
 
     def data_received(self, data):
-        print('Data received: {!r}'.format(data.decode()))
+        if not len(data):
+            return
+        for msg in Message.decode(data):
+            print('Data received: {}: {!r}'.format(msg.handler, msg.payload))
 
     def connection_lost(self, exc):
         print('The server closed the connection')
@@ -20,7 +27,7 @@ class EchoClientProtocol(asyncio.Protocol):
 def cli():
     loop = asyncio.get_event_loop()
     message = 'Hello World!'
-    coro = loop.create_connection(lambda: EchoClientProtocol(message, loop),
+    coro = loop.create_connection(lambda: EchoClientProtocol(loop),
                                   '127.0.0.1', 8888)
     loop.run_until_complete(coro)
     loop.run_forever()

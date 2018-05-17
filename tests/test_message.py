@@ -21,7 +21,7 @@ class TestMessage(unittest.TestCase):
 
     def test_01_decode(self):
         msg = bytes(Message(self.handler, self.header, self.payload))
-        msg = Message.decode(msg)
+        msg = list(Message.decode(msg))[0]
         self.assertEqual(msg.header_length, len(self.header))
         self.assertEqual(msg.header_length, len(self.header))
         self.assertEqual(msg.payload_length, len(self.payload))
