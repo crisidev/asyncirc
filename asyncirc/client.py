@@ -1,32 +1,35 @@
 import asyncio
-from typing import List
+import inspect
 
 from .message import Message
+from .protocol import BaseProtocol
 
-class EchoClientProtocol(asyncio.Protocol):
-    def __init__(self, loop, messages: List[Message] = []):
+class EchoClientProtocol(BaseProtocol):
+
+    def __init__(self, loop, handlers = {}):
+        super().__init__()
         self.loop = loop
-        self.messages = messages
 
     def send(self, *args):
         for message in args:
             self.transport.write(bytes(message))
 
-    def connection_made(self, transport):
-        self.transport = transport
-        self.send(*self.messages)
-
-    def data_received(self, data):
-        if not len(data):
-            return
-        for msg in Message.decode(data):
-            print('Data received: {}: {!r}'.format(msg.handler, msg.payload))
-
     def connection_lost(self, exc):
-        print('The server closed the connection')
-        print('Stop the event loop')
         self.loop.stop()
 
+    def handle(self, msg: Message):
+        built_ins = {
+            name.replace('handle_', ''): method \
+                    for name, method in inspect.getmembers(self,
+                        predicate=inspect.ismethod) \
+                    if name.startswith('handle_')}
+        handler = built_ins.get(msg.handler, False)
+        print(built_ins)
+        if handler is False:
+            print('WARN: %s handler not found: %s' % (
+                self.__class__.__qualname__, msg.handler))
+            return
+        return handler(msg)
 
 def cli():
     loop = asyncio.get_event_loop()

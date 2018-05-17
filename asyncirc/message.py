@@ -60,8 +60,69 @@ NotFound = Message('not_found', b'', b'Handler Not Found')
 Terminate = Message('terminate', b'', b'')
 
 # IRC Messages
+ReqID = Message('req_id', b'', b'')
+
+class Identify(Message):
+
+    def __init__(self, client_name):
+        super().__init__('identify', b'', client_name.encode(self.ENCODING))
+
+class IDLock(Message):
+
+    def __init__(self, password):
+        super().__init__('id_lock', b'', password.encode(self.ENCODING))
+
+Prove = Message('prove', b'', b'')
+IDTaken = Message('id_taken', b'', b'')
+
+class IDProve(Message):
+
+    def __init__(self, password):
+        super().__init__('id_prove', b'', password.encode(self.ENCODING))
 
 class CreateRoom(Message):
 
     def __init__(self, room_name):
         super().__init__('create_room', b'', room_name.encode(self.ENCODING))
+
+class JoinRoom(Message):
+
+    def __init__(self, room_name):
+        super().__init__('join_room', b'', room_name.encode(self.ENCODING))
+
+class MsgRoom(Message):
+
+    def __init__(self, room_name, payload):
+        super().__init__('msg_room', room_name.encode(self.ENCODING),
+                payload.encode(self.ENCODING))
+
+class Broadcast(Message):
+
+    def __init__(self, room_name, client_name, payload):
+        print(room_name, client_name, payload)
+        super().__init__('broadcast', ':'.join([room_name, client_name])\
+                .encode(self.ENCODING), payload)
+
+    def client_name(self):
+        return self.str_header().split(':')[1] \
+                if ':' in self.str_header() else 'Anonymous'
+
+    def room_name(self):
+        return self.str_header().split(':')[1] \
+                if ':' in self.str_header() else self.str_header()
+
+class NoRoom(Message):
+
+    def __init__(self, room_name):
+        super().__init__('no_room', b'', room_name.encode(self.ENCODING))
+
+class MsgClient(Message):
+
+    def __init__(self, client_name, payload):
+        super().__init__('msg_client', client_name.encode(self.ENCODING),
+                payload.encode(self.ENCODING))
+
+class NoClient(Message):
+
+    def __init__(self, client_name):
+        super().__init__('no_client', b'', client_name.encode(self.ENCODING))

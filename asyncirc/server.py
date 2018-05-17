@@ -2,50 +2,28 @@ import asyncio
 import inspect
 import traceback
 
+from functools import wraps
 from typing import Dict, Optional
 
+from .protocol import BaseProtocol
 from . import message
-
-class BaseProtocol(asyncio.Protocol):
-
-    def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        print('Connection from {}'.format(peername))
-        self.transport = transport
-
-    def data_received(self, data):
-        try:
-            for msg in message.Message.decode(data):
-                try:
-                    self.handle(msg)
-                except Exception as err:
-                    print('ERROR: %s handling message: %s' % (
-                        self.__class__.__qualname__, err))
-                    traceback.print_exc()
-                    self.transport.close()
-                    return
-        except Exception as err:
-            print('ERROR: %s while decoding message: %s: %s' % (
-                self.__class__.__qualname__, err, data))
-            traceback.print_exc()
-            self.transport.close()
-            return
-
-    def handle(self, msg: message.Message):
-        raise NotImplementedError('handle is not implemented')
 
 class ClientHandler(BaseProtocol):
 
     def __init__(self, server):
+        self.name = ''
+        self.identified = False
         self.server = server
+
+    def send(self, msg: message.Message):
+        self.transport.write(bytes(msg))
 
     def handle(self, msg: message.Message):
         handler = self.server.handlers.get(msg.handler, False)
         if handler is False:
             print('WARN: %s handler not found: %s' % (
                 self.__class__.__qualname__, msg.handler))
-            self.transport.write(bytes(message.NotFound))
-            return
+            return self.send(message.NotFound)
         return handler(self, msg)
 
 class Handler(object):
@@ -74,24 +52,70 @@ class BaseServer(object):
         return self.handler(self)
 
     def handle_echo(self, client: ClientHandler, msg: message.Message):
-        client.transport.write(bytes(msg))
+        client.send(msg)
 
     def handle_terminate(self, client: ClientHandler, msg: message.Message):
         client.transport.close()
 
-class Room(object): pass
+class Room(object):
+
+    def __init__(self, name: str):
+        self.name = name
+        self._clients: Dict[str, ClientHandler] = {}
+
+    def join(self, client: ClientHandler):
+        self._clients[client.name] = client
+
+    def clients(self):
+        return list(self._clients.keys())
+
+    def broadcast(self, client: ClientHandler, msg: message.Message):
+        for relay in self._clients.values():
+            relay.send(message.Broadcast(self.name, client.name, msg.payload))
+
+def IDd(f):
+    @wraps(f)
+    def wrapper(server, client, msg, *args, **kwds):
+        if not client.identified:
+            return client.send(message.ReqID)
+        return f(server, client, msg, *args, **kwds)
+    return wrapper
 
 class Server(BaseServer):
 
     def __init__(self, handler: Optional[ClientHandler] = ClientHandler,
             handlers: Dict[str, Handler] = {}):
         super().__init__(handler, handlers)
-        self.rooms: Dict[str, List[Message]] = {}
+        self._clients: Dict[str, List[Message]] = {}
+        self._rooms: Dict[str, List[Message]] = {}
 
+    def handle_identify(self, client: ClientHandler, msg: message.Message):
+        client_name = msg.str_payload()
+        if client_name in self._clients:
+            return client.send(message.IDTaken)
+        self._clients[client_name] = client
+        client.name = client_name
+        client.identified = True
+
+    @IDd
     def handle_create_room(self, client: ClientHandler, msg: message.Message):
         room_name = msg.str_payload()
-        if not room_name in self.rooms:
-            self.rooms[room_name] = Room()
+        if not room_name in self._rooms:
+            self._rooms[room_name] = Room(room_name)
+
+    @IDd
+    def handle_join_room(self, client: ClientHandler, msg: message.Message):
+        room_name = msg.str_payload()
+        if not room_name in self._rooms:
+            return client.send(message.NoRoom)
+        self._rooms[room_name].join(client)
+
+    @IDd
+    def handle_msg_room(self, client: ClientHandler, msg: message.Message):
+        room_name = msg.str_header()
+        if not room_name in self._rooms:
+            return client.send(message.NoRoom)
+        self._rooms[room_name].broadcast(client, msg)
 
 def cli():
     loop = asyncio.get_event_loop()
