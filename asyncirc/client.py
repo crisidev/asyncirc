@@ -9,13 +9,14 @@ class EchoClientProtocol(BaseProtocol):
     def __init__(self, loop, handlers = {}):
         super().__init__()
         self.loop = loop
+        self.disconnected = asyncio.Future(loop=self.loop)
 
     def send(self, *args):
         for message in args:
             self.transport.write(bytes(message))
 
     def connection_lost(self, exc):
-        self.loop.stop()
+        self.disconnected.set_result(True)
 
     def handle(self, msg: Message):
         built_ins = {
@@ -24,7 +25,6 @@ class EchoClientProtocol(BaseProtocol):
                         predicate=inspect.ismethod) \
                     if name.startswith('handle_')}
         handler = built_ins.get(msg.handler, False)
-        print(built_ins)
         if handler is False:
             print('WARN: %s handler not found: %s' % (
                 self.__class__.__qualname__, msg.handler))

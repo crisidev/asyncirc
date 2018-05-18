@@ -99,7 +99,6 @@ class MsgRoom(Message):
 class Broadcast(Message):
 
     def __init__(self, room_name, client_name, payload):
-        print(room_name, client_name, payload)
         super().__init__('broadcast', ':'.join([room_name, client_name])\
                 .encode(self.ENCODING), payload)
 
@@ -108,7 +107,7 @@ class Broadcast(Message):
                 if ':' in self.str_header() else 'Anonymous'
 
     def room_name(self):
-        return self.str_header().split(':')[1] \
+        return self.str_header().split(':')[0] \
                 if ':' in self.str_header() else self.str_header()
 
 class NoRoom(Message):

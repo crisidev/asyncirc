@@ -16,12 +16,6 @@ class TestIRC(unittest.TestCase):
                 '127.0.0.1', self.port)
         self.client_sock, proto = self.loop.run_until_complete(coro)
 
-    def runOps(self):
-        try:
-            self.loop.run_forever()
-        except KeyboardInterrupt:
-            pass
-
     def tearDown(self):
         self.client_sock.close()
         self.server_sock.close()
@@ -31,19 +25,19 @@ class TestIRC(unittest.TestCase):
     def test_00_connect(self):
         self.client.send(asyncirc.message.Echo('Hello World!'),
                 asyncirc.message.Terminate)
-        self.runOps()
+        self.loop.run_until_complete(self.client.disconnected)
 
     def test_01_identify(self):
         self.client.send(asyncirc.message.Identify('test_client'),
                 asyncirc.message.Terminate)
-        self.runOps()
+        self.loop.run_until_complete(self.client.disconnected)
         self.assertEqual(self.server._clients['test_client'].identified, True)
 
     def test_02_create_room(self):
         self.client.send(asyncirc.message.Identify('test_client'),
                 asyncirc.message.CreateRoom('test_room'),
                 asyncirc.message.Terminate)
-        self.runOps()
+        self.loop.run_until_complete(self.client.disconnected)
         self.assertIn('test_room', self.server._rooms)
 
     def test_03_join_room(self):
@@ -51,19 +45,18 @@ class TestIRC(unittest.TestCase):
                 asyncirc.message.CreateRoom('test_room'),
                 asyncirc.message.JoinRoom('test_room'),
                 asyncirc.message.Terminate)
-        self.runOps()
+        self.loop.run_until_complete(self.client.disconnected)
         self.assertIn('test_client', self.server._rooms['test_room']._clients)
 
     def test_04_msg_room(self):
-        check_room = 'Not received'
-        check_name = 'Not received'
-        check_payload = 'Not received'
         class GotRoomMsg(asyncirc.client.EchoClientProtocol):
-            def handle_broadcast(new_client, msg):
-                check_room = asyncirc.message.Broadcast.room_name(msg)
-                check_name = asyncirc.message.Broadcast.client_name(msg)
-                check_payload = msg.str_payload()
+            def handle_broadcast(nc, msg):
+                nc.got_broadcast.set_result(
+                        (asyncirc.message.Broadcast.room_name(msg),
+                        asyncirc.message.Broadcast.client_name(msg),
+                        msg.str_payload()))
         new_client = GotRoomMsg(self.loop)
+        new_client.got_broadcast = asyncio.Future(loop=self.loop)
         coro = self.loop.create_connection(lambda: new_client,
                 '127.0.0.1', self.port)
         new_client_sock, proto = self.loop.run_until_complete(coro)
@@ -73,13 +66,13 @@ class TestIRC(unittest.TestCase):
         self.client.send(asyncirc.message.Identify('test_client'),
                 asyncirc.message.CreateRoom('test_room'),
                 asyncirc.message.JoinRoom('test_room'),
-                asyncirc.message.MsgRoom('test_room', 'Hello World!'),
-                asyncirc.message.Terminate)
-        self.runOps()
+                asyncirc.message.MsgRoom('test_room', 'Hello World!'))
+        self.loop.run_until_complete(new_client.got_broadcast)
+        room, name, payload = new_client.got_broadcast.result()
+        self.assertEqual('test_room', room)
+        self.assertEqual('test_client', name)
+        self.assertEqual('Hello World!', payload)
         new_client_sock.close()
-        self.assertEqual('test_room', check_room)
-        self.assertEqual('test_client', check_name)
-        self.assertEqual('Hello World!', check_payload)
 
 if __name__ == '__main__':
     unittest.main()
