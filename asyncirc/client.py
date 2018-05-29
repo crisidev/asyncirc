@@ -8,15 +8,27 @@ class EchoClientProtocol(BaseProtocol):
 
     def __init__(self, loop, handlers = {}):
         super().__init__()
+        self.name = 'Unidentified'
         self.loop = loop
         self.disconnected = asyncio.Future(loop=self.loop)
 
-    def send(self, *args):
-        for message in args:
-            self.transport.write(bytes(message))
-
     def connection_lost(self, exc):
         self.disconnected.set_result(True)
+
+    def send(self, *args):
+        built_ins = {
+            name.replace('send_', ''): method \
+                    for name, method in inspect.getmembers(self,
+                        predicate=inspect.ismethod) \
+                    if name.startswith('send_')}
+        for msg in args:
+            handler = built_ins.get(msg.handler, False)
+            if not handler is False:
+                handler(msg)
+            self.transport.write(bytes(msg))
+
+    def send_identify(self, msg):
+        self.name = msg.str_payload()
 
     def handle(self, msg: Message):
         built_ins = {
@@ -26,8 +38,8 @@ class EchoClientProtocol(BaseProtocol):
                     if name.startswith('handle_')}
         handler = built_ins.get(msg.handler, False)
         if handler is False:
-            print('WARN: %s handler not found: %s' % (
-                self.__class__.__qualname__, msg.handler))
+            print('WARN: %s %s handler not found: %s' % (
+                self.__class__.__qualname__, self.name, msg.handler))
             return
         return handler(msg)
 
@@ -39,3 +51,6 @@ def cli():
     loop.run_until_complete(coro)
     loop.run_forever()
     loop.close()
+
+if __name__ == '__main__':
+    cli()

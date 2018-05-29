@@ -117,9 +117,9 @@ class NoRoom(Message):
 
 class MsgClient(Message):
 
-    def __init__(self, client_name, payload):
+    def __init__(self, client_name, payload, unencoded=False):
         super().__init__('msg_client', client_name.encode(self.ENCODING),
-                payload.encode(self.ENCODING))
+                payload if unencoded else payload.encode(self.ENCODING))
 
 class NoClient(Message):
 

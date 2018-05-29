@@ -117,6 +117,14 @@ class Server(BaseServer):
             return client.send(message.NoRoom)
         self._rooms[room_name].broadcast(client, msg)
 
+    @IDd
+    def handle_msg_client(self, client: ClientHandler, msg: message.Message):
+        client_name = msg.str_header()
+        if not client_name in self._clients:
+            return client.send(message.NoClient(client_name))
+        self._clients[client_name].send(message.MsgClient(client.name,
+            msg.payload, unencoded=True))
+
 def cli():
     loop = asyncio.get_event_loop()
     # Each client connection will create a new protocol instance

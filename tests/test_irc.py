@@ -67,9 +67,31 @@ class TestIRC(unittest.TestCase):
                 asyncirc.message.CreateRoom('test_room'),
                 asyncirc.message.JoinRoom('test_room'),
                 asyncirc.message.MsgRoom('test_room', 'Hello World!'))
-        self.loop.run_until_complete(new_client.got_broadcast)
+        self.loop.run_until_complete(
+                asyncio.wait_for(new_client.got_broadcast, 1.0, loop=self.loop))
         room, name, payload = new_client.got_broadcast.result()
         self.assertEqual('test_room', room)
+        self.assertEqual('test_client', name)
+        self.assertEqual('Hello World!', payload)
+        new_client_sock.close()
+
+    def test_05_msg_client(self):
+        class GotMsgClient(asyncirc.client.EchoClientProtocol):
+            def handle_msg_client(nc, msg):
+                nc.got_msg_client.set_result(
+                        (msg.str_header(), msg.str_payload()))
+        new_client = GotMsgClient(self.loop)
+        new_client.got_msg_client = asyncio.Future(loop=self.loop)
+        coro = self.loop.create_connection(lambda: new_client,
+                '127.0.0.1', self.port)
+        new_client_sock, proto = self.loop.run_until_complete(coro)
+        new_client.send(asyncirc.message.Identify('test_client_recv'))
+        self.client.send(asyncirc.message.Identify('test_client'),
+                asyncirc.message.MsgClient('test_client_recv', 'Hello World!'))
+        self.loop.run_until_complete(
+                asyncio.wait_for(new_client.got_msg_client,
+                    1.0, loop=self.loop))
+        name, payload = new_client.got_msg_client.result()
         self.assertEqual('test_client', name)
         self.assertEqual('Hello World!', payload)
         new_client_sock.close()
