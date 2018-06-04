@@ -124,5 +124,16 @@ class TestIRC(unittest.TestCase):
         self.assertEqual(new_client.got_rooms.result(), '\n'.join(rooms))
         new_client_sock.close()
 
+    def test_07_leave_room(self):
+        left = asyncio.Future(loop=self.loop)
+        self.client.add_handler('handle_room_left', lambda client, msg:
+            left.set_result(True))
+        self.client.send(asyncirc.message.Identify('test_client'),
+                asyncirc.message.CreateRoom('room'),
+                asyncirc.message.JoinRoom('room'),
+                asyncirc.message.LeaveRoom('room'))
+        self.loop.run_until_complete(asyncio.wait_for(left,
+            1.0, loop=self.loop))
+
 if __name__ == '__main__':
     unittest.main()

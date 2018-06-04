@@ -76,6 +76,13 @@ Prove = Message('prove', b'', b'')
 IDTaken = Message('id_taken', b'', b'')
 ListRooms = Message('list_rooms', b'', b'')
 RoomCreated = Message('room_created', b'', b'')
+RoomLeft = Message('room_left', b'', b'')
+RoomJoined = Message('room_joined', b'', b'')
+
+class LeaveRoom(Message):
+
+    def __init__(self, room):
+        super().__init__('leave_room', b'', room.encode(self.ENCODING))
 
 class RoomList(Message):
 

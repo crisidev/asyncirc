@@ -65,6 +65,12 @@ class Room(object):
 
     def join(self, client: ClientHandler):
         self._clients[client.name] = client
+        client.send(message.RoomJoined)
+
+    def leave(self, client: ClientHandler):
+        if client.name in self._clients:
+            self._clients.pop(client.name)
+            client.send(message.RoomLeft)
 
     def clients(self):
         return list(self._clients.keys())
@@ -114,6 +120,13 @@ class Server(BaseServer):
         if not room_name in self._rooms:
             return client.send(message.NoRoom)
         self._rooms[room_name].join(client)
+
+    @IDd
+    def handle_leave_room(self, client: ClientHandler, msg: message.Message):
+        room_name = msg.str_payload()
+        if not room_name in self._rooms:
+            return
+        self._rooms[room_name].leave(client)
 
     @IDd
     def handle_msg_room(self, client: ClientHandler, msg: message.Message):

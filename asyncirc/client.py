@@ -1,3 +1,4 @@
+import types
 import asyncio
 import inspect
 
@@ -29,6 +30,9 @@ class EchoClientProtocol(BaseProtocol):
 
     def send_identify(self, msg):
         self.name = msg.str_payload()
+
+    def add_handler(self, name, handler):
+        setattr(self, name, types.MethodType(handler, self))
 
     def handle(self, msg: Message):
         built_ins = {
