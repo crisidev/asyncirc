@@ -102,6 +102,11 @@ class Server(BaseServer):
         room_name = msg.str_payload()
         if not room_name in self._rooms:
             self._rooms[room_name] = Room(room_name)
+            return client.send(message.RoomCreated)
+
+    @IDd
+    def handle_list_rooms(self, client: ClientHandler, msg: message.Message):
+        return client.send(message.RoomList(self._rooms.keys()))
 
     @IDd
     def handle_join_room(self, client: ClientHandler, msg: message.Message):

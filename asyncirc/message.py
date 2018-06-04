@@ -74,6 +74,14 @@ class IDLock(Message):
 
 Prove = Message('prove', b'', b'')
 IDTaken = Message('id_taken', b'', b'')
+ListRooms = Message('list_rooms', b'', b'')
+RoomCreated = Message('room_created', b'', b'')
+
+class RoomList(Message):
+
+    def __init__(self, rooms):
+        super().__init__('room_list', b'',
+                '\n'.join(rooms).encode(self.ENCODING))
 
 class IDProve(Message):
 

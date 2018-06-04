@@ -1,3 +1,4 @@
+import types
 import asyncio
 import unittest
 
@@ -94,6 +95,33 @@ class TestIRC(unittest.TestCase):
         name, payload = new_client.got_msg_client.result()
         self.assertEqual('test_client', name)
         self.assertEqual('Hello World!', payload)
+        new_client_sock.close()
+
+    def test_06_list_rooms(self):
+        class GotListRooms(asyncirc.client.EchoClientProtocol):
+            def handle_room_list(nc, msg):
+                nc.got_rooms.set_result(msg.str_payload())
+        rooms = ['Room %d' % (i) for i in range(0, 10)]
+        new_client = GotListRooms(self.loop)
+        new_client.got_rooms = asyncio.Future(loop=self.loop)
+        coro = self.loop.create_connection(lambda: new_client,
+                '127.0.0.1', self.port)
+        new_client_sock, proto = self.loop.run_until_complete(coro)
+        new_client.send(asyncirc.message.Identify('test_client_recv'))
+        self.client.send(asyncirc.message.Identify('test_client'))
+        for room in rooms:
+            created = asyncio.Future(loop=self.loop)
+            def handle_room_created(client, msg):
+                created.set_result(True)
+            self.client.handle_room_created = types.MethodType(
+                    handle_room_created, self.client)
+            self.client.send(asyncirc.message.CreateRoom(room))
+            self.loop.run_until_complete(asyncio.wait_for(created,
+                1.0, loop=self.loop))
+        new_client.send(asyncirc.message.ListRooms)
+        self.loop.run_until_complete(asyncio.wait_for(new_client.got_rooms,
+                    1.0, loop=self.loop))
+        self.assertEqual(new_client.got_rooms.result(), '\n'.join(rooms))
         new_client_sock.close()
 
 if __name__ == '__main__':
