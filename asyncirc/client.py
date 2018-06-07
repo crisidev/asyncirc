@@ -47,6 +47,14 @@ class EchoClientProtocol(BaseProtocol):
             return
         return handler(msg)
 
+    @classmethod
+    def create_connection(cls, addr, port=13180,
+            loop=asyncio.get_event_loop()):
+        self = cls(loop)
+        coro = loop.create_connection(lambda: self, addr, port)
+        self.sock, proto = loop.run_until_complete(coro)
+        return self
+
 def cli():
     loop = asyncio.get_event_loop()
     message = 'Hello World!'
