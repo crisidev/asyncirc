@@ -131,7 +131,8 @@ class TestIRC(unittest.TestCase):
         self.client.send(asyncirc.message.Identify('test_client'),
                 asyncirc.message.CreateRoom('room'),
                 asyncirc.message.JoinRoom('room'),
-                asyncirc.message.LeaveRoom('room'))
+                asyncirc.message.LeaveRoom('room'),
+                asyncirc.message.Terminate)
         self.loop.run_until_complete(asyncio.wait_for(left,
             1.0, loop=self.loop))
 
