@@ -3,7 +3,7 @@
 > Also grading rubric
 
 |  TC | IRC Grading                                                   | Points |
-| --- |:-------------------------------------------------------------:|:------:|
+| --- |---------------------------------------------------------------|:------:|
 |  1  | RFC Document                                                  |  20    |
 |  2  | Server Process                                                |  3     |
 |  3  | Client can connect to a server                                |  3     |
@@ -23,7 +23,7 @@
 |  17 | Programming Style                                             |  10    |
 
 |  TC | IRC Grading                                                   | Points |
-| --- |:-------------------------------------------------------------:|:------:|
+| --- |---------------------------------------------------------------|:------:|
 |  18 | Private or Ephemeral Messaging                                |  5     |
 |  19 | Secure messaging                                              |  5     |
 |  20 | File transfer                                                 |  5     |
