@@ -107,6 +107,11 @@ class TestIRC(unittest.TestCase):
         self.assertEqual('test_client', name)
         self.assertEqual('Hello World!', payload)
 
+    def test_0101_msg_room_no_room(self):
+        self.run_async(self.client.identify('test_client'))
+        res = self.run_async(self.client.msg_room('test_room', 'H'))
+        self.assertEqual(res, 'no such room test_room')
+
     def test_0110_join_multiple_rooms(self):
         rooms = ['Room %d' % (i) for i in range(0, 10)]
         self.run_async(self.client.identify('test_client'))
@@ -173,6 +178,11 @@ class TestIRC(unittest.TestCase):
         name, payload = future.result()
         self.assertEqual('test_client', name)
         self.assertEqual('Hello World!', payload)
+
+    def test_0181_priave_messaging_no_client(self):
+        self.run_async(self.client.identify('test_client'))
+        res = self.run_async(self.client.msg_client('no_existo', 'H'))
+        self.assertEqual(res, 'no such client no_existo')
 
 if __name__ == '__main__':
     unittest.main()

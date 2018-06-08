@@ -90,9 +90,9 @@ class Client(BaseProtocol):
             self.send(message.Terminate)
             await self.disconnected
 
-    async def wait(self, future):
-        res = await asyncio.wait([self.disconnected, future], loop=self.loop,
-                return_when=asyncio.FIRST_COMPLETED)
+    async def wait(self, *args):
+        res = await asyncio.wait([self.disconnected] + list(args),
+                loop=self.loop, return_when=asyncio.FIRST_COMPLETED)
         if self.disconnected.done():
             raise ConnectionResetError
         return res
@@ -158,18 +158,36 @@ class Client(BaseProtocol):
     @IDd
     async def msg_room(self, room, payload):
         future = asyncio.Future(loop=self.loop)
+        none = asyncio.Future(loop=self.loop)
         self.add_handler('handle_room_msgd', lambda client, msg:
             future.set_result(True))
+        self.add_handler('handle_no_room', lambda client, msg:
+            none.set_result('no such room ' + room))
         self.send(message.MsgRoom(room, payload))
-        await self.wait(future)
+        res = await self.wait(future, none)
+        if not future.done():
+            future.cancel()
+        if not none.done():
+            none.cancel()
+        else:
+            return none.result()
 
     @IDd
-    async def msg_client(self, client, payload):
+    async def msg_client(self, client_name, payload):
         future = asyncio.Future(loop=self.loop)
+        none = asyncio.Future(loop=self.loop)
         self.add_handler('handle_client_msgd', lambda client, msg:
             future.set_result(True))
-        self.send(message.MsgClient(client, payload))
-        await self.wait(future)
+        self.add_handler('handle_no_client', lambda client, msg:
+            none.set_result('no such client ' + client_name))
+        self.send(message.MsgClient(client_name, payload))
+        res = await self.wait(future, none)
+        if not future.done():
+            future.cancel()
+        if not none.done():
+            none.cancel()
+        else:
+            return none.result()
 
 class CLIClient(Client):
 

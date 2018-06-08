@@ -74,6 +74,7 @@ RoomCreated = Message('room_created', b'', b'')
 RoomLeft = Message('room_left', b'', b'')
 RoomJoined = Message('room_joined', b'', b'')
 RoomMsgd = Message('room_msgd', b'', b'')
+NoRoom = Message('no_room', b'', b'')
 ClientMsgd = Message('client_msgd', b'', b'')
 
 class LeaveRoom(Message):
@@ -132,11 +133,6 @@ class Broadcast(Message):
     def room_name(self):
         return self.str_header().split(':')[0] \
                 if ':' in self.str_header() else self.str_header()
-
-class NoRoom(Message):
-
-    def __init__(self, room_name):
-        super().__init__('no_room', b'', room_name.encode(self.ENCODING))
 
 class MsgClient(Message):
 
