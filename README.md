@@ -1,6 +1,8 @@
-## Test Cases
+# asyncirc [![Build Status](https://travis-ci.com/pdxjohnny/asyncirc.svg?branch=master)](https://travis-ci.com/pdxjohnny/asyncirc)
 
-> Also grading rubric
+asyncio (Python 3.6+) tcp based chat server and client library. With CLI.
+
+## Test Cases
 
 |  TC | IRC Grading                                                   | Points |
 | --- |---------------------------------------------------------------|:------:|
