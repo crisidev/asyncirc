@@ -113,6 +113,8 @@ class Server(BaseServer):
             del self._clients[client.name]
 
     def handle_identify(self, client: ClientHandler, msg: message.Message):
+        if client.identified:
+            return client.send(message.Identified)
         client_name = msg.str_payload()
         if client_name in self._clients:
             return client.send(message.IDTaken)

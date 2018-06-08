@@ -192,8 +192,8 @@ class Client(BaseProtocol):
 class CLIClient(Client):
 
     def handle_broadcast(self, msg):
-        print('(%s) %s: %s' % (asyncirc.message.Broadcast.room_name(msg),
-            asyncirc.message.Broadcast.client_name(msg), msg.str_payload()))
+        print('(%s) %s: %s' % (message.Broadcast.room_name(msg),
+            message.Broadcast.client_name(msg), msg.str_payload()))
 
     def handle_client_msg(self, msg):
         print('[PRIVATE] %s: %s' % (msg.str_header(), msg.str_payload()))
@@ -306,10 +306,21 @@ class ClientCLI(asyncio.Protocol):
             return print('No such method', method_name, 'for', server_id)
         try:
             coro = method(*args)
+            self.loop.create_task(coro).add_done_callback(partial(self.ackd,
+                server_id=server_id, method_name=method_name, client=client))
         except TypeError as err:
-            print('Incorrect usage:', err)
-        self.loop.create_task(coro).add_done_callback(partial(self.ackd,
-            server_id=server_id, method_name=method_name, client=client))
+            if 'positional arguments but' in str(err):
+                num = int(str(err).split()[-7]) - 2
+                try:
+                    new_args = list(args[:num]) + [' '.join(args[num:])]
+                    coro = method(*new_args)
+                    self.loop.create_task(coro).add_done_callback(
+                            partial(self.ackd, server_id=server_id,
+                                method_name=method_name, client=client))
+                except TypeError as err:
+                    print('Incorrect usage:', err)
+            else:
+                print('Incorrect usage:', err)
 
 def cli():
     parser = argparse.ArgumentParser(description='asyncirc client')

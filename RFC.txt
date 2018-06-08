@@ -187,49 +187,80 @@ List of Tables
 3 Service interaction
 
    Table 2 summarises messages and responses to and from H2P2 services.
+   Unless otherwise specified data is transmitted in the payload of the
+   message.
 
    Handler         Use
    -------         ---
 
+   echo         -  Server repeats payload back to client.
+
+   not_found    -  Handler not found.
+
+   terminate    -  Sent to terminate connection with the other H2P2 service.
+
    identify     -  Client requests to be identifiable to other clients
                    on H2P2 server by the name provided in the payload.
 
-   id_lock      -  Client requests to lock its identity with the server by
-                   providing a password in the payload field.
+   identified   -  Server acknowledges identify sent by client.
 
-   prove        -  Server to client in response to identify. An id_lock has
-                   previously been issued on the payload given in identify. The
-                   client must respond with an id_prove message.
+   id_taken     -  Anther client is already registered with the client
+                   specified identify payload.
 
-   id_prove     -  Client provides password previously given in id_lock if it
-                   has the password. Otherwise it should send an identify
-                   message with another name, as this name is not available to
-                   the client.
+   req_id       -  Server requires the client issue an identify before
+                   requesting the specified operation.
+
+   list_rooms   -  Client requests list of rooms from the server.
+
+   room_list    -  Server sends newline seperated list of rooms to client.
 
    create_room  -  Client provides the name of the room it wishes to create in
                    the payload. Server should allocate a room by the given name.
+
+   room_created -  Server acknowledges create_room sent by client.
 
    join_room    -  Client provides the name of the room it wishes to join in
                    the payload. Server should associate the client with that
                    room.
 
+   room_joined  -  Server acknowledges create_room sent by client.
+
    msg_room     -  Client provides the name of the room it wishes to send a
                    message to in the header. The payload contains the message to
                    be broadcast to all clients associated with that room.
+
+   broadcast    -  Server sends to each client in a room the name of the room
+                   being broadcast to in the header. Payload contains the
+                   message content of the broadcast.
+
+   room_msgd    -  Server acknowledges msg_room sent by client.
+
+   room_members -  Client requests list of room members from the server.
+
+   member_list  -  Server sends newline seperated list of room members to
+                   client.
 
    no_room      -  Server sends this in response to a msg_room where no client
                    has issued a create_room with the name given in the msg_room
                    header.
 
+   leave_room   -  Client provides the name of the room it wishes to leave in
+                   message to Server in the payload.
+
+   room_left    -  Server acknowledges leave_room sent by client.
+
    msg_client   -  Client provides the name of the client it wishes to send a
                    message to in the header. The payload contains the message to
                    relay to the client identified header information.
 
+   client_msg   -  Server provides the name of the client who sent the message
+                   in the header. The payload contains the message data.
+
+   client_msgd  -  Server acknowledges msg_client sent by client.
+
    no_client    -  Server sends this in response to a msg_client where no client
                    has issued an identify with the name given in the msg_client
                    header.
-
-   terminate    -  Sent to terminate connection with the other H2P2 service.
 
 
                           Table 2:  H2P2 messages
