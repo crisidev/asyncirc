@@ -18,6 +18,9 @@ class ClientHandler(BaseProtocol):
     def send(self, msg: message.Message):
         self.transport.write(bytes(msg))
 
+    def disconnect(self):
+        self.transport.close()
+
     def handle(self, msg: message.Message):
         handler = self.server.handlers.get(msg.handler, False)
         if handler is False:
@@ -102,13 +105,14 @@ class Server(BaseServer):
         self._clients[client_name] = client
         client.name = client_name
         client.identified = True
+        client.send(message.Identified)
 
     @IDd
     def handle_create_room(self, client: ClientHandler, msg: message.Message):
         room_name = msg.str_payload()
         if not room_name in self._rooms:
             self._rooms[room_name] = Room(room_name)
-            return client.send(message.RoomCreated)
+        return client.send(message.RoomCreated)
 
     @IDd
     def handle_list_rooms(self, client: ClientHandler, msg: message.Message):
@@ -129,19 +133,28 @@ class Server(BaseServer):
         self._rooms[room_name].leave(client)
 
     @IDd
+    def handle_room_members(self, client: ClientHandler, msg: message.Message):
+        room_name = msg.str_payload()
+        if not room_name in self._rooms:
+            return
+        client.send(message.MemberList(self._rooms[room_name].clients()))
+
+    @IDd
     def handle_msg_room(self, client: ClientHandler, msg: message.Message):
         room_name = msg.str_header()
         if not room_name in self._rooms:
             return client.send(message.NoRoom)
         self._rooms[room_name].broadcast(client, msg)
+        client.send(message.RoomMsgd)
 
     @IDd
     def handle_msg_client(self, client: ClientHandler, msg: message.Message):
         client_name = msg.str_header()
         if not client_name in self._clients:
             return client.send(message.NoClient(client_name))
-        self._clients[client_name].send(message.MsgClient(client.name,
+        self._clients[client_name].send(message.ClientMsg(client.name,
             msg.payload, unencoded=True))
+        client.send(message.ClientMsgd)
 
 def cli():
     loop = asyncio.get_event_loop()

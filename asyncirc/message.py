@@ -67,17 +67,14 @@ class Identify(Message):
     def __init__(self, client_name):
         super().__init__('identify', b'', client_name.encode(self.ENCODING))
 
-class IDLock(Message):
-
-    def __init__(self, password):
-        super().__init__('id_lock', b'', password.encode(self.ENCODING))
-
-Prove = Message('prove', b'', b'')
+Identified = Message('identified', b'', b'')
 IDTaken = Message('id_taken', b'', b'')
 ListRooms = Message('list_rooms', b'', b'')
 RoomCreated = Message('room_created', b'', b'')
 RoomLeft = Message('room_left', b'', b'')
 RoomJoined = Message('room_joined', b'', b'')
+RoomMsgd = Message('room_msgd', b'', b'')
+ClientMsgd = Message('client_msgd', b'', b'')
 
 class LeaveRoom(Message):
 
@@ -104,6 +101,17 @@ class JoinRoom(Message):
 
     def __init__(self, room_name):
         super().__init__('join_room', b'', room_name.encode(self.ENCODING))
+
+class RoomMembers(Message):
+
+    def __init__(self, room_name):
+        super().__init__('room_members', b'', room_name.encode(self.ENCODING))
+
+class MemberList(Message):
+
+    def __init__(self, member_list):
+        super().__init__('member_list', b'',
+                '\n'.join(member_list).encode(self.ENCODING))
 
 class MsgRoom(Message):
 
@@ -134,6 +142,12 @@ class MsgClient(Message):
 
     def __init__(self, client_name, payload, unencoded=False):
         super().__init__('msg_client', client_name.encode(self.ENCODING),
+                payload if unencoded else payload.encode(self.ENCODING))
+
+class ClientMsg(Message):
+
+    def __init__(self, client_name, payload, unencoded=False):
+        super().__init__('client_msg', client_name.encode(self.ENCODING),
                 payload if unencoded else payload.encode(self.ENCODING))
 
 class NoClient(Message):
