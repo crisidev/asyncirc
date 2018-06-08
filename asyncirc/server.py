@@ -73,7 +73,6 @@ class Room(object):
     def leave(self, client: ClientHandler):
         if client.name in self._clients:
             self._clients.pop(client.name)
-            client.send(message.RoomLeft)
 
     def clients(self):
         return list(self._clients.keys())
@@ -108,6 +107,11 @@ class Server(BaseServer):
         self.port = self._sock.sockets[0].getsockname()[1]
         return self
 
+    def handle_terminate(self, client: ClientHandler, msg: message.Message):
+        client.transport.close()
+        if client.identified and client.name in self._clients:
+            del self._clients[client.name]
+
     def handle_identify(self, client: ClientHandler, msg: message.Message):
         client_name = msg.str_payload()
         if client_name in self._clients:
@@ -132,15 +136,15 @@ class Server(BaseServer):
     def handle_join_room(self, client: ClientHandler, msg: message.Message):
         room_name = msg.str_payload()
         if not room_name in self._rooms:
-            return client.send(message.NoRoom)
+            self._rooms[room_name] = Room(room_name)
         self._rooms[room_name].join(client)
 
     @IDd
     def handle_leave_room(self, client: ClientHandler, msg: message.Message):
         room_name = msg.str_payload()
-        if not room_name in self._rooms:
-            return
-        self._rooms[room_name].leave(client)
+        if room_name in self._rooms:
+            self._rooms[room_name].leave(client)
+        client.send(message.RoomLeft)
 
     @IDd
     def handle_room_members(self, client: ClientHandler, msg: message.Message):

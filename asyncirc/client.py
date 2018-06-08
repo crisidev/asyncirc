@@ -3,25 +3,31 @@ import types
 import asyncio
 import inspect
 import argparse
-from functools import wraps
+from functools import wraps, partial
 
 from .server import Server
 from . import message, const
 from .protocol import BaseProtocol
 
-def ensure_connection(f):
+async def must_id():
+    print('Must identify first')
+
+def IDd(f):
     @wraps(f)
     def wrapper(client, *args, **kwds):
-        if not client.connected():
-            raise ConnectionResetError()
+        if not client.identified:
+            return must_id()
         return f(client, *args, **kwds)
     return wrapper
 
 class Client(BaseProtocol):
 
+    NO_ID_NAME = 'Unidentified'
+
     def __init__(self, loop, handlers = {}):
         super().__init__()
-        self.name = 'Unidentified'
+        self.name = self.NO_ID_NAME
+        self.identified = False
         self.loop = loop
         self.disconnected = asyncio.Future(loop=self.loop)
 
@@ -71,8 +77,11 @@ class Client(BaseProtocol):
             self.sock, proto = loop.run_until_complete(coro)
         else:
             def connection_created(task):
-                self.sock, proto = task.result()
-                in_loop()
+                try:
+                    self.sock, proto = task.result()
+                except Exception as err:
+                    return in_loop(err)
+                in_loop(None)
             loop.create_task(coro).add_done_callback(connection_created)
         return self
 
@@ -88,7 +97,6 @@ class Client(BaseProtocol):
             raise ConnectionResetError
         return res
 
-    @ensure_connection
     async def echo(self, payload):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_echo', lambda client, msg:
@@ -97,15 +105,15 @@ class Client(BaseProtocol):
         await self.wait(future)
         return future.result()
 
-    @ensure_connection
     async def identify(self, name):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_identified', lambda client, msg:
             future.set_result(True))
         self.send(message.Identify(name))
+        self.identified = True
         await self.wait(future)
 
-    @ensure_connection
+    @IDd
     async def create_room(self, room):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_room_created', lambda client, msg:
@@ -113,7 +121,7 @@ class Client(BaseProtocol):
         self.send(message.CreateRoom(room))
         await self.wait(future)
 
-    @ensure_connection
+    @IDd
     async def list_rooms(self):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_room_list', lambda client, msg:
@@ -122,7 +130,7 @@ class Client(BaseProtocol):
         await self.wait(future)
         return future.result()
 
-    @ensure_connection
+    @IDd
     async def join_room(self, room):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_room_joined', lambda client, msg:
@@ -130,7 +138,7 @@ class Client(BaseProtocol):
         self.send(message.JoinRoom(room))
         await self.wait(future)
 
-    @ensure_connection
+    @IDd
     async def leave_room(self, room):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_room_left', lambda client, msg:
@@ -138,7 +146,7 @@ class Client(BaseProtocol):
         self.send(message.LeaveRoom(room))
         await self.wait(future)
 
-    @ensure_connection
+    @IDd
     async def room_members(self, room):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_member_list', lambda client, msg:
@@ -147,7 +155,7 @@ class Client(BaseProtocol):
         await self.wait(future)
         return future.result()
 
-    @ensure_connection
+    @IDd
     async def msg_room(self, room, payload):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_room_msgd', lambda client, msg:
@@ -155,13 +163,28 @@ class Client(BaseProtocol):
         self.send(message.MsgRoom(room, payload))
         await self.wait(future)
 
-    @ensure_connection
+    @IDd
     async def msg_client(self, client, payload):
         future = asyncio.Future(loop=self.loop)
         self.add_handler('handle_client_msgd', lambda client, msg:
             future.set_result(True))
         self.send(message.MsgClient(client, payload))
         await self.wait(future)
+
+class CLIClient(Client):
+
+    def handle_broadcast(self, msg):
+        print('(%s) %s: %s' % (asyncirc.message.Broadcast.room_name(msg),
+            asyncirc.message.Broadcast.client_name(msg), msg.str_payload()))
+
+    def handle_client_msg(self, msg):
+        print('[PRIVATE] %s: %s' % (msg.str_header(), msg.str_payload()))
+
+    def handle_req_id(self, msg):
+        print('#identify command required first')
+
+    def handle_id_taken(self, msg):
+        print('That id has already been registered')
 
 class ClientCLI(asyncio.Protocol):
 
@@ -187,16 +210,16 @@ class ClientCLI(asyncio.Protocol):
         if not data:
             return
         if data[0][0] == '/':
-            self.handle_method(data[0][1:], data[1:])
-        else:
-            self.on_active(data)
+            self.handle_method(data[0][1:], *data[1:])
+        elif data[0][0] == '#':
+            self.on_active(data[0][1:], *data[1:])
 
-    def handle_method(self, method_name, data):
+    def handle_method(self, method_name, *args):
         method = self.methods.get(method_name, False)
         if method is False:
             return print('Unknown method')
         try:
-            method(*data)
+            method(*args)
         except TypeError as err:
             print('An error has occurred:', err)
             helper = self.helpers.get(method_name, False)
@@ -207,16 +230,31 @@ class ClientCLI(asyncio.Protocol):
 
     def handle_connect(self, server_id, *args, addr=const.ADDR,
             port=const.PORT):
-        def connected():
+        def connected(err):
+            if not err is None:
+                return print('Error connecting to', server_id, err)
             if len(self.clients) is 0:
                 self.active = server_id
             self.clients[server_id] = client
             print('Connected to', server_id)
-        client = Client.create_connection(addr=addr, port=port, loop=self.loop,
-                in_loop=connected)
+        client = CLIClient.create_connection(addr=addr, port=port,
+                loop=self.loop, in_loop=connected)
 
     def helper_connect(self):
         print('/connect server_id address port')
+
+    def handle_disconnect(self, server_id):
+        if server_id in self.clients:
+            coro = self.clients[server_id].disconnect()
+            self.loop.create_task(coro).add_done_callback(lambda task:
+                    print('Disconnected from', server_id))
+            del self.clients[server_id]
+            if self.active == server_id:
+                self.active = None if not len(self.clients) \
+                        else list(self.clients.keys())[0]
+
+    def helper_disconnect(self):
+        print('/disconnect server_id')
 
     def handle_active(self, *args):
         if args:
@@ -225,17 +263,35 @@ class ClientCLI(asyncio.Protocol):
             self.active = args[0]
         print('Active connection:', self.active)
 
-    def on_active(self, data):
-        if self.active is None:
-            print('No active connections')
+    def ackd(self, task, server_id='unknown server',
+            method_name='unknown method', client=None):
+        res = None
+        try:
+            res = task.result()
+        except ConnectionResetError:
+            print('Connection distrupted', end='. ')
+            self.handle_disconnect(server_id)
+        if res is None and client.identified:
+            print(server_id, 'ACKd your', method_name)
+        elif not res is None:
+            print(res)
 
-def thing():
-    self.run_async(client.identify('crash_client'))
-    self.run_async(client.create_room('room'))
-    self.run_async(client.join_room('room'))
-    self.run_async(self.client.identify('test_client'))
-    self.run_async(self.client.join_room('room'))
-    self.run_async(self.client.msg_client('crash_client', 'Bye!'))
+    def on_active(self, method_name, *args):
+        if self.active is None:
+            return print('No active connections')
+        server_id = self.active
+        client = self.clients[server_id]
+        methods = {name: method for name, method in inspect.getmembers(client,
+            predicate=inspect.ismethod)}
+        method = methods.get(method_name, False)
+        if method is False:
+            return print('No such method', method_name, 'for', server_id)
+        try:
+            coro = method(*args)
+        except TypeError as err:
+            print('Incorrect usage:', err)
+        self.loop.create_task(coro).add_done_callback(partial(self.ackd,
+            server_id=server_id, method_name=method_name, client=client))
 
 def cli():
     parser = argparse.ArgumentParser(description='asyncirc client')

@@ -33,7 +33,6 @@ class TestIRC(unittest.TestCase):
 
     def test_0031_identify(self):
         self.run_async(self.client.identify('test_client'))
-        self.run_async(self.client.disconnect())
         self.assertEqual(self.server._clients['test_client'].identified, True)
 
     def test_0040_create_room(self):
