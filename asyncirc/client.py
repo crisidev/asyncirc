@@ -14,7 +14,7 @@ def ensure_connection(f):
         return f(client, *args, **kwds)
     return wrapper
 
-class EchoClientProtocol(BaseProtocol):
+class Client(BaseProtocol):
 
     def __init__(self, loop, handlers = {}):
         super().__init__()

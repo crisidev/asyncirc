@@ -7,19 +7,18 @@ import asyncirc
 class TestIRC(unittest.TestCase):
 
     def setUp(self):
-        self.server = asyncirc.server.Server()
         self.loop = asyncio.new_event_loop()
-        coro = self.loop.create_server(self.server, '127.0.0.1', 0)
-        self.server_sock = self.loop.run_until_complete(coro)
-        self.port = self.server_sock.sockets[0].getsockname()[1]
-        self.client = asyncirc.client.EchoClientProtocol\
-                .create_connection('127.0.0.1', port=self.port, loop=self.loop)
+        self.server = asyncirc.server.Server.start(addr='127.0.0.1', port=0,
+                loop=self.loop)
+        self.client = asyncirc.client.Client\
+                .create_connection('127.0.0.1', port=self.server.port,
+                        loop=self.loop)
 
     def tearDown(self):
         self.run_async(self.client.disconnect())
         self.client.sock.close()
-        self.server_sock.close()
-        self.loop.run_until_complete(self.server_sock.wait_closed())
+        self.server._sock.close()
+        self.loop.run_until_complete(self.server._sock.wait_closed())
         self.loop.close()
 
     def run_async(self, coro):
@@ -71,8 +70,8 @@ class TestIRC(unittest.TestCase):
         self.run_async(self.client.create_room('test_room'))
         self.run_async(self.client.join_room('test_room'))
         for client_name in members:
-            client = asyncirc.client.EchoClientProtocol.create_connection(
-                    '127.0.0.1', port=self.port, loop=self.loop)
+            client = asyncirc.client.Client.create_connection(
+                    '127.0.0.1', port=self.server.port, loop=self.loop)
             self.run_async(client.identify(client_name))
             self.run_async(client.join_room('test_room'))
             clients.append(client)
@@ -84,8 +83,8 @@ class TestIRC(unittest.TestCase):
     def test_0090_multiple_clients(self):
         clients = []
         for i in range(0, 10):
-            client = asyncirc.client.EchoClientProtocol.create_connection(
-                    '127.0.0.1', port=self.port, loop=self.loop)
+            client = asyncirc.client.Client.create_connection(
+                    '127.0.0.1', port=self.server.port, loop=self.loop)
             self.run_async(client.identify('client%d' % (i)))
             clients.append(client)
         for client in clients:
@@ -148,8 +147,8 @@ class TestIRC(unittest.TestCase):
             self.run_async(self.client.echo('echo!'))
 
     def test_0150_server_handles_client_crash(self):
-        client = asyncirc.client.EchoClientProtocol.create_connection(
-                '127.0.0.1', port=self.port, loop=self.loop)
+        client = asyncirc.client.Client.create_connection(
+                '127.0.0.1', port=self.server.port, loop=self.loop)
         self.run_async(client.identify('crash_client'))
         self.run_async(client.create_room('room'))
         self.run_async(client.join_room('room'))
@@ -160,8 +159,8 @@ class TestIRC(unittest.TestCase):
 
     def test_0160_client_handles_server_crash(self):
         self.run_async(self.client.identify('test_client'))
-        self.server_sock.close()
-        self.loop.run_until_complete(self.server_sock.wait_closed())
+        self.server._sock.close()
+        self.loop.run_until_complete(self.server._sock.wait_closed())
         self.run_async(self.client.echo('echo!'))
 
     def test_0180_priave_messaging(self):

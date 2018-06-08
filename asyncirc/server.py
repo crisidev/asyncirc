@@ -97,6 +97,15 @@ class Server(BaseServer):
         super().__init__(handler, handlers)
         self._clients: Dict[str, List[Message]] = {}
         self._rooms: Dict[str, List[Message]] = {}
+        self.port: int = 0
+
+    @classmethod
+    def start(cls, addr='127.0.0.1', port=13180, loop=asyncio.get_event_loop()):
+        self = cls()
+        coro = loop.create_server(self, addr, port)
+        self._sock = loop.run_until_complete(coro)
+        self.port = self._sock.sockets[0].getsockname()[1]
+        return self
 
     def handle_identify(self, client: ClientHandler, msg: message.Message):
         client_name = msg.str_payload()
