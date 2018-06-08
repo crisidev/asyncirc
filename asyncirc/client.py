@@ -1,8 +1,11 @@
+import sys
 import types
 import asyncio
 import inspect
+import argparse
 from functools import wraps
 
+from .server import Server
 from . import message, const
 from .protocol import BaseProtocol
 
@@ -61,10 +64,16 @@ class Client(BaseProtocol):
 
     @classmethod
     def create_connection(cls, addr=const.ADDR, port=const.PORT,
-            loop=asyncio.get_event_loop()):
+            loop=asyncio.get_event_loop(), in_loop=False):
         self = cls(loop)
         coro = loop.create_connection(lambda: self, addr, port)
-        self.sock, proto = loop.run_until_complete(coro)
+        if in_loop is False:
+            self.sock, proto = loop.run_until_complete(coro)
+        else:
+            def connection_created(task):
+                self.sock, proto = task.result()
+                in_loop()
+            loop.create_task(coro).add_done_callback(connection_created)
         return self
 
     async def disconnect(self):
@@ -154,13 +163,104 @@ class Client(BaseProtocol):
         self.send(message.MsgClient(client, payload))
         await self.wait(future)
 
+class ClientCLI(asyncio.Protocol):
+
+    def __init__(self, loop=asyncio.get_event_loop()):
+        super().__init__()
+        self.loop = loop
+        self.clients = {}
+        self.rooms = {}
+        self.active = None
+        self.methods = {
+            name.replace('handle_', ''): method \
+                    for name, method in inspect.getmembers(self,
+                        predicate=inspect.ismethod) \
+                    if name.startswith('handle_')}
+        self.helpers = {
+            name.replace('helper_', ''): method \
+                    for name, method in inspect.getmembers(self,
+                        predicate=inspect.ismethod) \
+                    if name.startswith('helper_')}
+
+    def data_received(self, data):
+        data = data.decode(encoding='utf-8', errors='ignore').split()
+        if not data:
+            return
+        if data[0][0] == '/':
+            self.handle_method(data[0][1:], data[1:])
+        else:
+            self.on_active(data)
+
+    def handle_method(self, method_name, data):
+        method = self.methods.get(method_name, False)
+        if method is False:
+            return print('Unknown method')
+        try:
+            method(*data)
+        except TypeError as err:
+            print('An error has occurred:', err)
+            helper = self.helpers.get(method_name, False)
+            if not helper is False:
+                helper()
+        except Exception as err:
+            print('An error has occurred:', err)
+
+    def handle_connect(self, server_id, *args, addr=const.ADDR,
+            port=const.PORT):
+        def connected():
+            if len(self.clients) is 0:
+                self.active = server_id
+            self.clients[server_id] = client
+            print('Connected to', server_id)
+        client = Client.create_connection(addr=addr, port=port, loop=self.loop,
+                in_loop=connected)
+
+    def helper_connect(self):
+        print('/connect server_id address port')
+
+    def handle_active(self, *args):
+        if args:
+            if not args[0] in self.clients:
+                return print('No active connection to', args[0])
+            self.active = args[0]
+        print('Active connection:', self.active)
+
+    def on_active(self, data):
+        if self.active is None:
+            print('No active connections')
+
+def thing():
+    self.run_async(client.identify('crash_client'))
+    self.run_async(client.create_room('room'))
+    self.run_async(client.join_room('room'))
+    self.run_async(self.client.identify('test_client'))
+    self.run_async(self.client.join_room('room'))
+    self.run_async(self.client.msg_client('crash_client', 'Bye!'))
+
 def cli():
+    parser = argparse.ArgumentParser(description='asyncirc client')
+    parser.add_argument('-s', '--server', action='store_true', default=False,
+            help='Start a server in the background')
+    parser.add_argument('--addr', type=str, default=const.ADDR,
+            help='Address to bind to')
+    parser.add_argument('--port', type=int, default=const.PORT,
+            help='Port to bind to')
+    args = parser.parse_args()
+
     loop = asyncio.get_event_loop()
-    message = 'Hello World!'
-    coro = loop.create_connection(lambda: EchoClientProtocol(loop),
-                                  '127.0.0.1', 8888)
+    if args.server:
+        server = Server.start(addr=args.addr, port=args.port, loop=loop)
+        print('Server hosted on port {}'.format(server.port))
+    coro = loop.connect_read_pipe(lambda: ClientCLI(loop=loop), sys.stdin)
     loop.run_until_complete(coro)
-    loop.run_forever()
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+
+    if args.server:
+        server._sock.close()
+        loop.run_until_complete(server._sock.wait_closed())
     loop.close()
 
 if __name__ == '__main__':
