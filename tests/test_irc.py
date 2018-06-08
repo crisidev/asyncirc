@@ -118,6 +118,26 @@ class TestIRC(unittest.TestCase):
         room_list = self.run_async(self.client.list_rooms())
         self.assertEqual(room_list, '\n'.join(rooms))
 
+    def test_0120_msg_multiple_rooms(self):
+        rooms = ['Room %d' % (i) for i in range(0, 10)]
+        msgs = {}
+        future = asyncio.Future(loop=self.loop)
+        def handle_broadcast(client, msg):
+            msgs[asyncirc.message.Broadcast.room_name(msg)] = msg.str_payload()
+            if len(msgs) is len(rooms):
+                future.set_result(True)
+        self.client.add_handler('handle_broadcast', handle_broadcast)
+        self.run_async(self.client.identify('test_client'))
+        for room_name in rooms:
+            self.run_async(self.client.create_room(room_name))
+            self.run_async(self.client.join_room(room_name))
+            self.run_async(self.client.msg_room(room_name, 'Hi ' + room_name))
+        self.loop.run_until_complete(asyncio.wait_for(future,
+            1.0, loop=self.loop))
+        for room_name in rooms:
+            self.assertIn(room_name, msgs)
+            self.assertEqual(msgs[room_name], 'Hi ' + room_name)
+
     def test_0130_client_disconnect(self):
         self.run_async(self.client.disconnect())
 
