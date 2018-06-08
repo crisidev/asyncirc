@@ -3,7 +3,7 @@ import asyncio
 import inspect
 from functools import wraps
 
-from . import message
+from . import message, const
 from .protocol import BaseProtocol
 
 def ensure_connection(f):
@@ -60,7 +60,7 @@ class Client(BaseProtocol):
         return handler(msg)
 
     @classmethod
-    def create_connection(cls, addr, port=13180,
+    def create_connection(cls, addr=const.ADDR, port=const.PORT,
             loop=asyncio.get_event_loop()):
         self = cls(loop)
         coro = loop.create_connection(lambda: self, addr, port)

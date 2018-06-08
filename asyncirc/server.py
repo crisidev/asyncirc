@@ -1,12 +1,12 @@
 import asyncio
 import inspect
-import traceback
+import argparse
 
 from functools import wraps
 from typing import Dict, Optional
 
 from .protocol import BaseProtocol
-from . import message
+from . import message, const
 
 class ClientHandler(BaseProtocol):
 
@@ -100,7 +100,8 @@ class Server(BaseServer):
         self.port: int = 0
 
     @classmethod
-    def start(cls, addr='127.0.0.1', port=13180, loop=asyncio.get_event_loop()):
+    def start(cls, addr=const.ADDR, port=const.PORT,
+            loop=asyncio.get_event_loop()):
         self = cls()
         coro = loop.create_server(self, addr, port)
         self._sock = loop.run_until_complete(coro)
@@ -166,19 +167,26 @@ class Server(BaseServer):
         client.send(message.ClientMsgd)
 
 def cli():
-    loop = asyncio.get_event_loop()
-    # Each client connection will create a new protocol instance
-    coro = loop.create_server(EchoServerClientProtocol, '127.0.0.1', 8888)
-    server = loop.run_until_complete(coro)
+    parser = argparse.ArgumentParser(description='asyncirc server')
+    parser.add_argument('--addr', type=str, default=const.ADDR,
+            help='Address to bind to')
+    parser.add_argument('--port', type=int, default=const.PORT,
+            help='Port to bind to')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False,
+            help='Suppress logging output')
+    args = parser.parse_args()
 
-    # Serve requests until Ctrl+C is pressed
-    print('Serving on {}'.format(server.sockets[0].getsockname()))
+    loop = asyncio.get_event_loop()
+    server = Server.start(addr=args.addr, port=args.port, loop=loop)
+    if not args.quiet:
+        print('Serving on {}'.format(server.port))
     try:
         loop.run_forever()
     except KeyboardInterrupt:
         pass
 
-    # Close the server
-    server.close()
-    loop.run_until_complete(server.wait_closed())
+    server._sock.close()
+    loop.run_until_complete(server._sock.wait_closed())
     loop.close()
+    if not args.quiet:
+        print('Gracefully shutdown')
